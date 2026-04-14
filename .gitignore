@@ -1,0 +1,17 @@
+# Data (too large for git)
+data/
+ACDC/
+logs/
+*.ckpt
+*.nii.gz
+*.npz
+*.pkl
+
+# Python
+__pycache__/
+*.pyc
+.env
+
+# OS
+.DS_Store
+Thumbs.db
