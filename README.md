@@ -2,9 +2,6 @@
 
 Research project investigating cross-domain transfer of self-supervised cardiac MRI representations to Late-Gadolinium Enhancement (LGE) segmentation.
 
-**Supervisors:** Dr. Karen Sanchez, Pr. Bernard Ghanem  
-**Institution:** King Abdullah University of Science and Technology (KAUST)  
-**Target Venue:** CVPR / MICCAI
 
 ---
 
