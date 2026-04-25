@@ -17,9 +17,11 @@ This repository adapts [WholeHeartRL](https://github.com/Yundi-Zhang/WholeHeartR
 ```
 ├── WholeHeartRL/
 │   ├── configs/
-│   │   ├── config_reconstruction.yaml                # MAE pretraining
-│   │   ├── config_segmentation_acdc_pretrained.yaml  # Finetuning — pretrained encoder
-│   │   └── config_segmentation_acdc_scratch.yaml     # Finetuning — random init
+│   │   ├── config_reconstruction.yaml                   # MAE pretraining
+│   │   ├── config_segmentation_acdc_pretrained.yaml     # Finetuning — pretrained encoder (85 labels)
+│   │   ├── config_segmentation_acdc_scratch.yaml        # Finetuning — random init (85 labels)
+│   │   ├── config_segmentation_acdc_pretrained_20.yaml  # Finetuning — pretrained encoder (20 labels)
+│   │   └── config_segmentation_acdc_scratch_20.yaml     # Finetuning — random init (20 labels)
 │   ├── data/                   # Dataset classes and dataloaders
 │   ├── models/                 # ReconMAE, SegMAE, RegrMAE
 │   ├── networks/               # ViT encoder, UNETR decoder, losses
@@ -29,7 +31,8 @@ This repository adapts [WholeHeartRL](https://github.com/Yundi-Zhang/WholeHeartR
 ├── prepare_pipeline_data.py    # Build train/val/test splits and pickle files
 ├── modal_run.py                # Cloud training script — MAE pretraining (Modal)
 ├── modal_seg.py                # Cloud training script — segmentation finetuning + evaluation
-└── plot_curves.py              # Learning curve visualization
+├── plot_curves.py              # Learning curve visualization
+└── generate_results_table.py  # Results table generator (PNG + PDF)
 ```
 
 ---
@@ -53,10 +56,11 @@ The original codebase targets UK Biobank exclusively. The following changes were
 | `main.py` | `torch.load(..., weights_only=False)` for PyTorch 2.6 compatibility |
 | `main.py` | Encoder weight transfer includes `enc_pos_embed` and `patch_embed` |
 | `main.py` | W&B logging disabled for cloud execution |
+| `models/reconstruction_models.py` | Fixed `NoneType` error on `train_epoch_start_time` when resuming |
 | `models/segmentation_models.py` | Fixed `AttributeError` on missing `vis` in `test_step` |
 | `utils/params.py` | Added `precision` field to `TrainerParams` |
 | `utils/data_related.py` | Replaced hardcoded hostname detection with env variable paths |
-| `data/dataloaders.py` | Added path remapping for cross-platform compatibility |
+| `data/dataloaders.py` | Fixed `FileExistsError` on Modal volume filesystem |
 | `configs/` | New ACDC configs: `patch_size=[1,8,8]`, `enc_embed_dim=1040`, SA-only, T=2 |
 
 ---
@@ -107,7 +111,7 @@ Produces `/vol/processed/<id>/processed_seg_allax.npz` per subject:
 modal run modal_seg.py::create_acdc_pickles
 ```
 
-Fixed split: 70 train / 15 val / 15 test (seed=1).
+Fixed split: 85 train / 8 val / 7 test (seed=1).
 
 ### Step 4 — MAE pretraining
 
@@ -120,9 +124,11 @@ Checkpoints saved to `/vol/logs/checkpoints/run2/`.
 ### Step 5 — Segmentation finetuning
 
 ```bash
-modal run --detach modal_seg.py                        # both conditions
+modal run --detach modal_seg.py                        # both conditions (85 labels)
 modal run --detach modal_seg.py --condition pretrained
 modal run --detach modal_seg.py --condition scratch
+modal run --detach modal_seg.py --condition pretrained_20  # 20-label condition
+modal run --detach modal_seg.py --condition scratch_20
 ```
 
 ### Step 6 — Test evaluation
@@ -130,16 +136,19 @@ modal run --detach modal_seg.py --condition scratch
 ```bash
 modal run modal_seg.py::evaluate --condition scratch
 modal run modal_seg.py::evaluate --condition pretrained
+modal run modal_seg.py::evaluate --condition scratch_20
+modal run modal_seg.py::evaluate --condition pretrained_20
 ```
 
-### Step 7 — Download logs and plot learning curves
+### Step 7 — Download logs and generate figures
 
 ```bash
 modal volume get cardiac-data logs/lightning_logs .
 python plot_curves.py \
-  --scratch lightning_logs/version_16/metrics.csv \
-  --pretrained lightning_logs/version_19/metrics.csv \
+  --scratch lightning_logs/version_X/metrics.csv \
+  --pretrained lightning_logs/version_Y/metrics.csv \
   --output learning_curves.png
+python generate_results_table.py --output_dir .
 ```
 
 ---
@@ -150,25 +159,37 @@ python plot_curves.py \
 
 | Setting | Value |
 |---------|-------|
-| Dataset | ACDC — 70 training subjects |
+| Dataset | ACDC — 85 training subjects |
 | Input | SA-only, ED + ES frames (T=2) |
 | Patch size | [1, 8, 8] |
 | enc_embed_dim | 1040 |
 | Mask ratio | 0.7 |
 | Epochs | 200 |
-| Best val PSNR | **21.91** (epoch 194) |
+| Best val PSNR | **24.37** (epoch 199) |
 
-### Segmentation Finetuning — ACDC Test Set
+### Segmentation Finetuning — ACDC Test Set (85 labeled subjects)
 
 Identical architecture and training protocol across both conditions. Only `load_encoder` differs.
 
+![Results Table](results_table.png)
+
 | Condition | LVBP Dice | LVMYO Dice | RVBP Dice | FG Dice | FG IoU |
 |-----------|-----------|------------|-----------|---------|--------|
-| Scratch | 0.761 | 0.355 | 0.356 | 0.491 | 0.349 |
-| Pretrained (SSL) | 0.735 | 0.358 | 0.358 | 0.484 | 0.339 |
+| Scratch | 0.739 | 0.338 | 0.424 | 0.500 | 0.353 |
+| Pretrained (SSL) | **0.776** | **0.367** | 0.406 | **0.516** | **0.371** |
 
-The pretrained condition converges faster in early epochs (epoch 5: 0.194 vs 0.169 Dice FG) but reaches equivalent final performance at epoch 100. This suggests MAE pretraining provides a useful initialization but its advantage diminishes with sufficient supervised training on this dataset scale.
+SSL pretraining improves overall segmentation performance, with the largest gains on LVBP (+3.7pp) and LVMYO (+2.9pp). The pretrained condition also shows faster early convergence.
 
+---
+
+## Planned Experiments
+
+| Experiment | Dataset | Status |
+|------------|---------|--------|
+| MAE pretraining + segmentation finetuning | ACDC | ✅ Complete |
+| Label efficiency study (20 vs 85 labels) | ACDC | ✅ Complete |
+| MAE pretraining at scale | UK Biobank (~14k) | ⬜ Pending access |
+| Transfer to infarct segmentation | MyoSAIQ (LGE-MRI) | ⬜ Pending access |
 
 ---
 
