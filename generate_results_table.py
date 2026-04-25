@@ -24,8 +24,8 @@ def generate_table(output_dir):
     # ------------------------------------------------------------------ #
     columns = ["Condition", "LVBP Dice", "LVMYO Dice", "RVBP Dice", "FG Dice", "FG IoU"]
     rows = [
-        ["Scratch (random init)", "0.761", "0.355", "0.356", "0.491", "0.349"],
-        ["Pretrained (SSL encoder)", "0.735", "0.358", "0.358", "0.484", "0.339"],
+        ["Scratch (random init)", "0.743", "0.311", "0.437", "0.497", "0.352"],
+        ["Pretrained (SSL encoder)", "0.776", "0.367", "0.406", "0.516", "0.371"],
     ]
 
     # ------------------------------------------------------------------ #
@@ -129,7 +129,7 @@ def generate_table(output_dir):
     )
     ax.text(
         table_width / 2, header_y - n_rows * row_height - 0.06,
-        "Split: 70 train / 15 val / 15 test (seed=1). "
+        "Split: 85 train / 8 val / 7 test (seed=1). "
         "Both conditions use identical architecture and training protocol. "
         "Bold green values indicate best per column.",
         ha="center", va="top",

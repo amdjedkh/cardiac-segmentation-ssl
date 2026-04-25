@@ -10,10 +10,10 @@ data:
   replace_processed: False
   sax_slice_num: 6
   image_size: [128, 128]
-  train_num_per_epoch: 70
-  num_train: 70
-  num_val: 15
-  num_test: 15
+  train_num_per_epoch: 85
+  num_train: 85
+  num_val: 8
+  num_test: 7
   num_workers: 2
   batch_size: 1
   dataset_cls: Cardiac3DplusTSAX

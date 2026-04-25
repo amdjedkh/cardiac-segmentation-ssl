@@ -82,6 +82,19 @@ def _setup_environment():
     os.makedirs("/vol/logs", exist_ok=True)
     sys.path.insert(0, "/vol/WholeHeartRL")
 
+    # Patch torch.load for PyTorch 2.6 compatibility
+    import torch
+    _original_torch_load = torch.load
+    def _patched_torch_load(f, map_location=None, pickle_module=None, weights_only=False, **kwargs):
+        return _original_torch_load(f, map_location=map_location, weights_only=False, **kwargs)
+    torch.load = _patched_torch_load
+    # Patch Lightning cloud_io for PyTorch 2.6 weights_only compatibility
+    filepath = "/usr/local/lib/python3.11/site-packages/lightning/fabric/utilities/cloud_io.py"
+    with open(filepath, "r") as f:
+        lines = f.readlines()
+    new_lines = [l.replace("weights_only=weights_only,", "weights_only=False,") for l in lines]
+    with open(filepath, "w") as f:
+        f.writelines(new_lines)
 
 def _print_gpu_info():
     import torch
@@ -108,8 +121,8 @@ def train_segmentation(condition: str):
     import subprocess
     import sys
 
-    assert condition in ("pretrained", "scratch"), \
-        f"condition must be 'pretrained' or 'scratch', got '{condition}'"
+    assert condition in ("pretrained", "scratch", "pretrained_20", "scratch_20"), \
+        f"condition must be pretrained/scratch/pretrained_20/scratch_20, got '{condition}'"
 
     _setup_environment()
 
@@ -166,6 +179,23 @@ def train_segmentation(condition: str):
     print(f"{'='*60}\n")
     return result.returncode
 
+@app.function(image=image, gpu=None, volumes={"/vol": vol})
+def patch_lightning():
+    filepath = "/usr/local/lib/python3.11/site-packages/lightning/fabric/utilities/cloud_io.py"
+    with open(filepath, "r") as f:
+        lines = f.readlines()
+    
+    patched = 0
+    for i, line in enumerate(lines):
+        if "weights_only=weights_only," in line:
+            lines[i] = line.replace("weights_only=weights_only,", "weights_only=False,")
+            patched += 1
+            print(f"Patched line {i}: {lines[i].rstrip()}")
+    
+    with open(filepath, "w") as f:
+        f.writelines(lines)
+    print(f"Done. Patched {patched} lines.")
+
 
 @app.function(image=image, gpu=None, volumes={"/vol": vol})
 def create_acdc_pickles():
@@ -177,7 +207,10 @@ def create_acdc_pickles():
 
     processed_dir = Path("/vol/processed")
     dataloader_dir = Path("/vol/dataloader")
-    dataloader_dir.mkdir(exist_ok=True)
+    try:
+        dataloader_dir.mkdir(exist_ok=True)
+    except FileExistsError:
+        pass
 
     # Find all valid processed subjects
     npz_files = sorted(glob.glob(str(processed_dir / "*/processed_seg_allax.npz")))
@@ -189,9 +222,9 @@ def create_acdc_pickles():
     random.seed(1)
     shuffled = patient_ids.copy()
     random.shuffle(shuffled)
-    train_ids = shuffled[:70]
-    val_ids   = shuffled[70:85]
-    test_ids  = shuffled[85:100]
+    train_ids = shuffled[:85]
+    val_ids   = shuffled[85:93]
+    test_ids  = shuffled[93:100]
 
     # Build path lists — each entry is Path to the npz file
     # This is what CMRDataModule expects in paths["train"] etc.
@@ -222,6 +255,20 @@ def create_acdc_pickles():
     vol.commit()
     print("Done.")
 
+@app.function(image=image, gpu=None, volumes={"/vol": vol})
+def fix_dataloader_dir():
+    import os, shutil
+    # Remove the corrupted dataloader file/dir
+    path = "/vol/dataloader"
+    if os.path.exists(path):
+        if os.path.isfile(path):
+            os.remove(path)
+            print("Removed file at /vol/dataloader")
+        elif os.path.isdir(path):
+            print("/vol/dataloader is already a directory")
+    os.makedirs(path, exist_ok=True)
+    print("Created /vol/dataloader directory")
+    vol.commit()
 
 @app.function(image=image, gpu=None, volumes={"/vol": vol})
 def check_pickle_paths():
@@ -531,6 +578,14 @@ def check_configs():
         with open(f"/vol/WholeHeartRL/configs/{name}") as f:
             print(f.read())
 
+@app.function(image=image, gpu=None, volumes={"/vol": vol})
+def setup_volume_dirs():
+    import os
+    for d in ["/vol/tabular", "/vol/raw", "/vol/logs"]:
+        os.makedirs(d, exist_ok=True)
+    vol.commit()
+    print("Done")
+
 @app.function(image=image, gpu="A10G", timeout=3600, volumes={"/vol": vol})
 def evaluate(condition: str):
     import sys, os
@@ -545,8 +600,8 @@ def evaluate(condition: str):
     from torch.utils.data import DataLoader
 
     ckpt_map = {
-        "scratch":    "/vol/logs/checkpoints/seg_scratch/25-04-2026_02-30-28/model-epoch=099-val_Dice_FG=0.66.ckpt",
-        "pretrained": "/vol/logs/checkpoints/seg_pretrained/25-04-2026_09-19-48/model-epoch=099-val_Dice_FG=0.66.ckpt",
+        "scratch":    "/vol/logs/checkpoints/seg_scratch/25-04-2026_10-28-32/model-epoch=204-val_Dice_FG=0.71.ckpt",
+        "pretrained": "/vol/logs/checkpoints/seg_pretrained/25-04-2026_10-24-54/model-epoch=299-val_Dice_FG=0.67.ckpt",
     }
 
     # Load test dataset
@@ -613,7 +668,7 @@ def main(condition: str = "both"):
         modal run modal_seg.py --condition pretrained
         modal run modal_seg.py --condition scratch
     """
-    assert condition in ("pretrained", "scratch", "both"), \
+    assert condition in ("pretrained", "scratch", "pretrained_20", "scratch_20", "both"), \
         f"--condition must be pretrained, scratch, or both. Got: {condition}"
 
     conditions = ["pretrained", "scratch"] if condition == "both" else [condition]

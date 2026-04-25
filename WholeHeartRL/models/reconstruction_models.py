@@ -47,7 +47,7 @@ class BasicModule(pl.LightningModule):
         self.module_logger.wandb_log(self.current_epoch, mode="val")
 
     def on_train_epoch_end(self) -> None:
-        epoch_runtime = (time.time() - self.train_epoch_start_time) / 60
+        epoch_runtime = (time.time() - (self.train_epoch_start_time or time.time())) / 60
         self.module_logger.update_metric_item("train/epoch_runtime", epoch_runtime, mode="train")
         self.module_logger.update_metric_item("train/lr", self.lr, mode="train")
         self.module_logger.wandb_log(self.current_epoch, mode="train")
