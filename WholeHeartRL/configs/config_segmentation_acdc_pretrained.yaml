@@ -23,7 +23,7 @@ data:
   num_test: 15
   num_workers: 2
   batch_size: 1
-  dataset_cls: Cardiac3DplusTAllAX
+  dataset_cls: Cardiac3DplusTSAX
   load_seg: True
 
 module:

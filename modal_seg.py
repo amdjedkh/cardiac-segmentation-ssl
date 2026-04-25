@@ -457,6 +457,152 @@ def rebuild_npz():
     vol.commit()
     print("Done.")
 
+
+@app.function(image=image, gpu=None, volumes={"/vol": vol})
+def check_loaded_keys():
+    import torch, sys
+    sys.path.insert(0, "/vol/WholeHeartRL")
+    ckpt = torch.load(
+        "/vol/logs/checkpoints/run2/25-04-2026_02-20-05/model-epoch=194-val_PSNR=21.91.ckpt",
+        weights_only=False,
+        map_location="cpu"
+    )
+    keys = list(ckpt["state_dict"].keys())
+    print(f"Total keys in checkpoint: {len(keys)}")
+    for k in keys:
+        if "enc_pos_embed" in k or "patch_embed" in k:
+            print(f"  {k}: {ckpt['state_dict'][k].shape}")
+
+
+@app.function(image=image, gpu=None, volumes={"/vol": vol})
+def check_sample_shape():
+    import sys, os
+    sys.path.insert(0, "/vol/WholeHeartRL")
+    _setup_environment()
+    import numpy as np
+    d = np.load("/vol/processed/054/processed_seg_allax.npz")
+    print(f"sax shape: {d['sax'].shape}")
+    print(f"seg_sax shape: {d['seg_sax'].shape}")
+    
+    # Simulate what dataset returns
+    from data.datasets import Cardiac3DplusTSAX
+    import pandas as pd
+    from pathlib import Path
+    paths = [Path("/vol/processed/054/processed_seg_allax.npz")]
+    df = pd.DataFrame({"eid_87802": [54], "LVM (g)": [120.0]})
+    dset = Cardiac3DplusTSAX(paths, df, "LVM (g)", load_seg=True, sax_slice_num=6)
+    img, seg, idx = dset[0]
+    print(f"dataset img shape: {img.shape}")
+    print(f"dataset seg shape: {seg.shape}")
+
+
+
+@app.function(image=image, gpu=None, volumes={"/vol": vol})
+def check_val_dset_shape():
+    import sys
+    sys.path.insert(0, "/vol/WholeHeartRL")
+    _setup_environment()
+    import pickle
+    import pandas as pd
+    from pathlib import Path
+    from data.datasets import Cardiac3DplusTSAX_Test
+
+    with open("/vol/dataloader/cmr_subject_paths.pkl", "rb") as f:
+        paths = pickle.load(f)
+    df = pd.read_pickle("/vol/dataloader/biomarker_table.pkl")
+
+    val_dset = Cardiac3DplusTSAX_Test(
+        paths["val"], df, "LVM (g)",
+        load_seg=True, sax_slice_num=6
+    )
+    img, seg, idx = val_dset[0]
+    print(f"val_dset[0] img shape: {img.shape}")
+    print(f"val_dset[0] seg shape: {seg.shape}")
+    print(f"val_dset.num_classes: {val_dset.num_classes}")
+    print(f"val_dset.view: {val_dset.view}")
+
+
+
+@app.function(image=image, gpu=None, volumes={"/vol": vol})
+def check_configs():
+    for name in ["config_segmentation_acdc_pretrained.yaml",
+                 "config_segmentation_acdc_scratch.yaml"]:
+        print(f"\n--- {name} ---")
+        with open(f"/vol/WholeHeartRL/configs/{name}") as f:
+            print(f.read())
+
+@app.function(image=image, gpu="A10G", timeout=3600, volumes={"/vol": vol})
+def evaluate(condition: str):
+    import sys, os
+    sys.path.insert(0, "/vol/WholeHeartRL")
+    _setup_environment()
+    import torch
+    import numpy as np
+    import pickle
+    import pandas as pd
+    from pathlib import Path
+    from data.datasets import Cardiac3DplusTSAX_Test
+    from torch.utils.data import DataLoader
+
+    ckpt_map = {
+        "scratch":    "/vol/logs/checkpoints/seg_scratch/25-04-2026_02-30-28/model-epoch=099-val_Dice_FG=0.66.ckpt",
+        "pretrained": "/vol/logs/checkpoints/seg_pretrained/25-04-2026_09-19-48/model-epoch=099-val_Dice_FG=0.66.ckpt",
+    }
+
+    # Load test dataset
+    with open("/vol/dataloader/cmr_subject_paths.pkl", "rb") as f:
+        paths = pickle.load(f)
+    df = pd.read_pickle("/vol/dataloader/biomarker_table.pkl")
+    test_dset = Cardiac3DplusTSAX_Test(
+        paths["test"], df, "LVM (g)", load_seg=True, sax_slice_num=6
+    )
+    test_loader = DataLoader(test_dset, batch_size=1, num_workers=0)
+
+    # Load model
+    from models.segmentation_models import SegMAE
+    ckpt = torch.load(ckpt_map[condition], weights_only=False, map_location="cpu")
+
+    # Build model from hparams
+    hparams = ckpt["hyper_parameters"]
+    hparams.pop("val_dset", None)
+    model = SegMAE(val_dset=test_dset, **hparams)
+    model.load_state_dict(ckpt["state_dict"])
+    model.eval().cuda()
+
+    # Run evaluation
+    from utils.general import to_1hot
+    num_classes = test_dset.num_classes
+    dice_per_class = torch.zeros(num_classes)
+    count = 0
+
+    with torch.no_grad():
+        for imgs, segs, idx in test_loader:
+            imgs = imgs.cuda()
+            segs = segs.cuda()
+            pred = model(imgs)  # (B, C, S, T, H, W)
+            pred_hard = torch.argmax(pred, dim=1)  # (B, S, T, H, W)
+
+            gt = to_1hot(segs, num_class=num_classes).moveaxis(-1, 1)  # (B, C, S, T, H, W)
+            pred_1hot = to_1hot(pred_hard, num_class=num_classes).moveaxis(-1, 1)
+
+            for c in range(num_classes):
+                intersection = (pred_1hot[:, c] * gt[:, c]).sum()
+                denom = pred_1hot[:, c].sum() + gt[:, c].sum()
+                dice = (2 * intersection / denom) if denom > 0 else torch.tensor(1.0)
+                dice_per_class[c] += dice.item()
+            count += 1
+
+    dice_per_class /= count
+    iou_per_class = dice_per_class / (2 - dice_per_class)
+
+    print(f"\n=== TEST RESULTS — {condition.upper()} ===")
+    classes = ["BG", "LVBP", "LVMYO", "RVBP"]
+    for c, name in enumerate(classes):
+        print(f"  {name}: Dice={dice_per_class[c]:.4f}  IoU={iou_per_class[c]:.4f}")
+    fg_dice = dice_per_class[1:].mean()
+    fg_iou = iou_per_class[1:].mean()
+    print(f"  FG mean: Dice={fg_dice:.4f}  IoU={fg_iou:.4f}")
+
 @app.local_entrypoint()
 def main(condition: str = "both"):
     """

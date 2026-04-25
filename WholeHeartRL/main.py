@@ -110,7 +110,7 @@ def main():
         ckpt = torch.load(params.general.ckpt_path, weights_only=False)
         pretrained_dict = ckpt["state_dict"]
         processed_dict = {}
-        pretrained_params = ["cls_token", "mask_token", "patch_embed", "encoder", "encoder_norm"]
+        pretrained_params = ["cls_token", "enc_pos_embed", "mask_token", "patch_embed", "encoder", "encoder_norm"]
         for k in model.state_dict().keys():
             decomposed_k = k.split(".")
             if decomposed_k[0] in pretrained_params:
