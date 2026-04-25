@@ -169,17 +169,6 @@ Identical architecture and training protocol across both conditions. Only `load_
 
 The pretrained condition converges faster in early epochs (epoch 5: 0.194 vs 0.169 Dice FG) but reaches equivalent final performance at epoch 100. This suggests MAE pretraining provides a useful initialization but its advantage diminishes with sufficient supervised training on this dataset scale.
 
----
-
-## Planned Experiments
-
-| Experiment | Dataset | Status |
-|------------|---------|--------|
-| MAE pretraining + segmentation finetuning | ACDC | ✅ Complete |
-| MAE pretraining at scale | UK Biobank (~14k) | ⬜ Pending access |
-| Transfer to infarct segmentation | MyoSAIQ (LGE-MRI) | ⬜ Pending access |
-| Label efficiency study (10/25/50/100%) | MyoSAIQ | ⬜ Pending |
-| nnUNet baseline | ACDC + MyoSAIQ | ⬜ Planned |
 
 ---
 
