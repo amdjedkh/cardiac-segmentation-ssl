@@ -1,195 +1,198 @@
-<div align="center">
+# Self-Supervised Representation Learning for Cardiac MRI Segmentation
 
-<!-- HEADER WAVE -->
-<img width="100%" src="https://capsule-render.vercel.app/api?type=waving&color=0:0a192f,50:1e3a5f,100:00d4ff&height=220&section=header&text=Amdjed%20Khelifi&fontSize=52&fontColor=e6f1ff&fontAlignY=35&desc=AI%20Master's%20Student%20%7C%20Intelligent%20Systems%20%7C%20Research-Driven%20Development&descSize=16&descColor=64ffda&descAlignY=55&animation=fadeIn" />
+This repository adapts [WholeHeartRL](https://github.com/Yundi-Zhang/WholeHeartRL) (MICCAI 2024) — a masked autoencoder (MAE) framework for cardiac MRI representation learning — and evaluates whether SSL pretraining improves downstream segmentation compared to training from scratch. The pipeline is validated on ACDC and is designed to extend to myocardial infarct segmentation on LGE-MRI (MyoSAIQ).
 
-<!-- TYPING SVG -->
-<a href="https://git.io/typing-svg">
-  <img src="https://readme-typing-svg.demolab.com?font=JetBrains+Mono&weight=600&size=22&duration=3000&pause=1000&color=00D4FF&center=true&vCenter=true&multiline=true&repeat=true&width=600&height=80&lines=%F0%9F%94%AC+Exploring+the+frontiers+of+AI;%F0%9F%A7%A0+Algorithms+%7C+Intelligent+Systems+%7C+Research;%F0%9F%9A%80+Turning+ideas+into+intelligent+solutions" alt="Typing SVG" />
-</a>
+---
 
-<!-- PROFILE VIEWS + FOLLOWERS -->
-<br/>
-<img src="https://komarev.com/ghpvc/?username=amdjedkh&style=for-the-badge&color=0a192f&label=PROFILE+VIEWS" alt="Profile views" />
-&nbsp;
-<a href="https://github.com/amdjedkh?tab=followers">
-  <img src="https://img.shields.io/github/followers/amdjedkh?style=for-the-badge&color=0a192f&labelColor=1e3a5f&label=Followers&logo=github&logoColor=64ffda" alt="Followers" />
-</a>
-&nbsp;
-<a href="https://github.com/amdjedkh?tab=repositories">
-  <img src="https://img.shields.io/github/stars/amdjedkh?style=for-the-badge&color=0a192f&labelColor=1e3a5f&label=Total+Stars&logo=github&logoColor=64ffda" alt="Stars" />
-</a>
+## Research Questions
 
-</div>
+- Does MAE-based SSL pretraining on cardiac cine MRI improve downstream segmentation over random initialization?
+- Can representations learned from cine MRI transfer to LGE-MRI segmentation despite the domain gap?
+- Does SSL pretraining disproportionately benefit rare, small structures (infarct, MVO) under limited annotation budgets?
 
-<br/>
+---
 
-<!-- DIVIDER -->
-<img src="https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/aqua.png" width="100%" />
+## Repository Structure
 
-<!-- ABOUT ME -->
-## <img src="https://media.giphy.com/media/hvRJCLFzcasrR4ia7z/giphy.gif" width="28"> &nbsp;About Me
-
-<img align="right" src="https://www.amdjedkhelifi.com/_assets/v11/cc2f5fb4932d65f85669acb97f83d0beb236094c.png" width="200" style="border-radius: 50%;" />
-
-```yaml
-name: Amdjed Khelifi
-role: Master's Student in Artificial Intelligence
-focus:
-  - Intelligent Systems
-  - Algorithm Design & Optimization
-  - Research-Driven Development
-motto: "Decode complexity. Engineer intelligence."
+```
+├── WholeHeartRL/
+│   ├── configs/
+│   │   ├── config_reconstruction.yaml                # MAE pretraining
+│   │   ├── config_segmentation_acdc_pretrained.yaml  # Finetuning — pretrained encoder
+│   │   └── config_segmentation_acdc_scratch.yaml     # Finetuning — random init
+│   ├── data/                   # Dataset classes and dataloaders
+│   ├── models/                 # ReconMAE, SegMAE, RegrMAE
+│   ├── networks/               # ViT encoder, UNETR decoder, losses
+│   └── utils/                  # Preprocessing, logging, model utilities
+├── convert_acdc.py             # Convert ACDC NIfTI → WholeHeartRL npz format
+├── create_dummy_tabular.py     # Generate placeholder tabular files for ACDC
+├── prepare_pipeline_data.py    # Build train/val/test splits and pickle files
+├── modal_run.py                # Cloud training script — MAE pretraining (Modal)
+├── modal_seg.py                # Cloud training script — segmentation finetuning + evaluation
+└── plot_curves.py              # Learning curve visualization
 ```
 
-- 🎓 &nbsp;Pursuing a **Master's in Artificial Intelligence**
-- 🔬 &nbsp;Focused on **intelligent systems** and **algorithmic research**
-- 🧩 &nbsp;Passionate about **problem solving** and **computational thinking**
-- 🌍 &nbsp;Building solutions that bridge **theory and real-world impact**
-- 📬 &nbsp;Reach me at **contact@amdjedkhelifi.com**
+---
 
-<br clear="both"/>
+## Datasets
 
-<!-- DIVIDER -->
-<img src="https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/aqua.png" width="100%" />
+| Dataset | Modality | Subjects | Role |
+|---------|----------|----------|------|
+| [ACDC](https://www.creatis.insa-lyon.fr/Challenge/acdc/) | Cine MRI (SA) | 100 | Pretraining + segmentation finetuning |
+| [UK Biobank](https://www.ukbiobank.ac.uk/) | Cine MRI | ~14,000 | Large-scale pretraining (pending access) |
+| [MyoSAIQ](https://www.creatis.insa-lyon.fr/Challenge/myosaiq/) | LGE-MRI | 439 | Infarct segmentation transfer (pending access) |
 
-<!-- TECH STACK -->
-## 🛠️ &nbsp;Tech Stack & Expertise
+---
 
-<div align="center">
+## Modifications to WholeHeartRL
 
-### 🧠 &nbsp;Core Domains
-![Artificial Intelligence](https://img.shields.io/badge/Artificial_Intelligence-0a192f?style=for-the-badge&logo=openai&logoColor=64ffda)
-![Machine Learning](https://img.shields.io/badge/Machine_Learning-0a192f?style=for-the-badge&logo=tensorflow&logoColor=64ffda)
-![Deep Learning](https://img.shields.io/badge/Deep_Learning-0a192f?style=for-the-badge&logo=pytorch&logoColor=64ffda)
-![Algorithms](https://img.shields.io/badge/Algorithms-0a192f?style=for-the-badge&logo=thealgorithms&logoColor=64ffda)
-![Data Science](https://img.shields.io/badge/Data_Science-0a192f?style=for-the-badge&logo=pandas&logoColor=64ffda)
+The original codebase targets UK Biobank exclusively. The following changes were made to support ACDC and ensure reproducibility:
 
-### 💻 &nbsp;Languages & Frameworks
-![Python](https://img.shields.io/badge/Python-1e3a5f?style=for-the-badge&logo=python&logoColor=00d4ff)
-![C](https://img.shields.io/badge/C-1e3a5f?style=for-the-badge&logo=c&logoColor=00d4ff)
-![Java](https://img.shields.io/badge/Java-1e3a5f?style=for-the-badge&logo=openjdk&logoColor=00d4ff)
-![SQL](https://img.shields.io/badge/SQL-1e3a5f?style=for-the-badge&logo=postgresql&logoColor=00d4ff)
-![LaTeX](https://img.shields.io/badge/LaTeX-1e3a5f?style=for-the-badge&logo=latex&logoColor=00d4ff)
+| File | Change |
+|------|--------|
+| `main.py` | `torch.load(..., weights_only=False)` for PyTorch 2.6 compatibility |
+| `main.py` | Encoder weight transfer includes `enc_pos_embed` and `patch_embed` |
+| `main.py` | W&B logging disabled for cloud execution |
+| `models/segmentation_models.py` | Fixed `AttributeError` on missing `vis` in `test_step` |
+| `utils/params.py` | Added `precision` field to `TrainerParams` |
+| `utils/data_related.py` | Replaced hardcoded hostname detection with env variable paths |
+| `data/dataloaders.py` | Added path remapping for cross-platform compatibility |
+| `configs/` | New ACDC configs: `patch_size=[1,8,8]`, `enc_embed_dim=1040`, SA-only, T=2 |
 
-### 🔧 &nbsp;Tools & Platforms
-![Git](https://img.shields.io/badge/Git-0d2137?style=for-the-badge&logo=git&logoColor=64ffda)
-![Linux](https://img.shields.io/badge/Linux-0d2137?style=for-the-badge&logo=linux&logoColor=64ffda)
-![Jupyter](https://img.shields.io/badge/Jupyter-0d2137?style=for-the-badge&logo=jupyter&logoColor=64ffda)
-![VS Code](https://img.shields.io/badge/VS_Code-0d2137?style=for-the-badge&logo=visualstudiocode&logoColor=64ffda)
-![Google Colab](https://img.shields.io/badge/Google_Colab-0d2137?style=for-the-badge&logo=googlecolab&logoColor=64ffda)
+---
 
-</div>
+## Setup
 
-<!-- DIVIDER -->
-<img src="https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/aqua.png" width="100%" />
+### Requirements
 
-<!-- METRICS DASHBOARD -->
-## 📊 &nbsp;Metrics Dashboard
+- Python 3.11+
+- [Modal](https://modal.com/) account (cloud GPU) or local NVIDIA GPU with ≥24 GB VRAM
+- ACDC dataset: download from https://www.creatis.insa-lyon.fr/Challenge/acdc/
 
-<div align="center">
+### Installation
 
-<!-- ROW 1: STATS + STREAK -->
-<a href="https://github.com/amdjedkh">
-  <img width="49%" src="https://github-readme-stats.vercel.app/api?username=amdjedkh&show_icons=true&theme=transparent&title_color=00d4ff&text_color=e6f1ff&icon_color=64ffda&border_color=1e3a5f&bg_color=0a192f&hide_border=false&include_all_commits=true&count_private=true&custom_title=📈%20GitHub%20Stats" />
-</a>
-<a href="https://github.com/amdjedkh">
-  <img width="49%" src="https://streak-stats.demolab.com?user=amdjedkh&theme=transparent&background=0a192f&border=1e3a5f&stroke=1e3a5f&ring=00d4ff&fire=64ffda&currStreakNum=e6f1ff&sideNums=e6f1ff&currStreakLabel=00d4ff&sideLabels=64ffda&dates=8892b0" />
-</a>
+```bash
+git clone https://github.com/amdjedkh/cardiac-segmentation-ssl
+cd cardiac-segmentation-ssl
+pip install modal nibabel numpy pandas matplotlib torch torchvision
+```
 
-<br/><br/>
+---
 
-<!-- ROW 2: LANGUAGES + ACTIVITY GRAPH -->
-<a href="https://github.com/amdjedkh">
-  <img width="40%" src="https://github-readme-stats.vercel.app/api/top-langs/?username=amdjedkh&layout=donut-vertical&theme=transparent&title_color=00d4ff&text_color=e6f1ff&border_color=1e3a5f&bg_color=0a192f&hide_border=false&langs_count=6" />
-</a>
+## Reproduction
 
-<br/><br/>
+### Step 1 — Upload data to Modal volume
 
-<!-- ACTIVITY GRAPH -->
-<img width="98%" src="https://github-readme-activity-graph.vercel.app/graph?username=amdjedkh&bg_color=0a192f&color=e6f1ff&line=00d4ff&point=64ffda&area_color=1e3a5f&area=true&hide_border=false&custom_title=📅%20Contribution%20Graph&border_color=1e3a5f" />
+```bash
+modal setup
+modal volume create cardiac-data
+modal volume put cardiac-data <path-to-acdc>/training raw --force
+modal volume put cardiac-data WholeHeartRL WholeHeartRL --force
+```
 
-</div>
+### Step 2 — Rebuild processed npz files
 
-<!-- DIVIDER -->
-<img src="https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/aqua.png" width="100%" />
+```bash
+modal run modal_seg.py::rebuild_npz_2frame
+```
 
-<!-- SKILL GAUGES -->
-## 🎯 &nbsp;Skill Proficiency
+Produces `/vol/processed/<id>/processed_seg_allax.npz` per subject:
+- `sax`: `(128, 128, 6, 2)` — 6 SA slices, ED and ES frames
+- `seg_sax`: `(128, 128, 6, 2)` — labels: 1=LVBP, 2=LVMYO, 3=RVBP
+- `lax`, `seg_lax`: zeros (ACDC has no LA annotations)
 
-<div align="center">
+### Step 3 — Generate data splits
 
-| Domain | Proficiency |
-|:---:|:---:|
-| **Artificial Intelligence** | ![](https://img.shields.io/badge/%E2%96%88%E2%96%88%E2%96%88%E2%96%88%E2%96%88%E2%96%88%E2%96%88%E2%96%88%E2%96%88%E2%96%8B-90%25-00d4ff?style=flat-square&labelColor=0a192f) |
-| **Algorithms & Problem Solving** | ![](https://img.shields.io/badge/%E2%96%88%E2%96%88%E2%96%88%E2%96%88%E2%96%88%E2%96%88%E2%96%88%E2%96%88%E2%96%88%E2%96%8B-90%25-00d4ff?style=flat-square&labelColor=0a192f) |
-| **Machine Learning** | ![](https://img.shields.io/badge/%E2%96%88%E2%96%88%E2%96%88%E2%96%88%E2%96%88%E2%96%88%E2%96%88%E2%96%88%E2%96%8C%E2%96%8C-85%25-64ffda?style=flat-square&labelColor=0a192f) |
-| **Research & Writing** | ![](https://img.shields.io/badge/%E2%96%88%E2%96%88%E2%96%88%E2%96%88%E2%96%88%E2%96%88%E2%96%88%E2%96%88%E2%96%8C%E2%96%8C-85%25-64ffda?style=flat-square&labelColor=0a192f) |
-| **Python** | ![](https://img.shields.io/badge/%E2%96%88%E2%96%88%E2%96%88%E2%96%88%E2%96%88%E2%96%88%E2%96%88%E2%96%88%E2%96%8C%E2%96%8C-85%25-64ffda?style=flat-square&labelColor=0a192f) |
-| **Data Science** | ![](https://img.shields.io/badge/%E2%96%88%E2%96%88%E2%96%88%E2%96%88%E2%96%88%E2%96%88%E2%96%88%E2%96%8C%E2%96%8C%E2%96%8C-80%25-1e90ff?style=flat-square&labelColor=0a192f) |
+```bash
+modal run modal_seg.py::create_acdc_pickles
+```
 
-</div>
+Fixed split: 70 train / 15 val / 15 test (seed=1).
 
-<!-- DIVIDER -->
-<img src="https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/aqua.png" width="100%" />
+### Step 4 — MAE pretraining
 
-<!-- CURRENTLY -->
-## 🔭 &nbsp;Currently
+```bash
+modal run --detach modal_run.py
+```
 
-<div align="center">
+Checkpoints saved to `/vol/logs/checkpoints/run2/`.
 
-![Studying](https://img.shields.io/badge/📚_Studying-Master's_in_AI-0a192f?style=for-the-badge&labelColor=1e3a5f)
-![Researching](https://img.shields.io/badge/🔬_Researching-Intelligent_Systems-0a192f?style=for-the-badge&labelColor=1e3a5f)
-![Solving](https://img.shields.io/badge/🧩_Solving-Algorithmic_Challenges-0a192f?style=for-the-badge&labelColor=1e3a5f)
+### Step 5 — Segmentation finetuning
 
-</div>
+```bash
+modal run --detach modal_seg.py                        # both conditions
+modal run --detach modal_seg.py --condition pretrained
+modal run --detach modal_seg.py --condition scratch
+```
 
-> *"The question of whether a computer can think is no more interesting than the question of whether a submarine can swim."*
-> — Edsger W. Dijkstra
+### Step 6 — Test evaluation
 
-<!-- DIVIDER -->
-<img src="https://raw.githubusercontent.com/andreasbm/readme/master/assets/lines/aqua.png" width="100%" />
+```bash
+modal run modal_seg.py::evaluate --condition scratch
+modal run modal_seg.py::evaluate --condition pretrained
+```
 
-<!-- CONNECT -->
-## 🤝 &nbsp;Connect With Me
+### Step 7 — Download logs and plot learning curves
 
-<div align="center">
+```bash
+modal volume get cardiac-data logs/lightning_logs .
+python plot_curves.py \
+  --scratch lightning_logs/version_16/metrics.csv \
+  --pretrained lightning_logs/version_19/metrics.csv \
+  --output learning_curves.png
+```
 
-<a href="mailto:contact@amdjedkhelifi.com">
-  <img src="https://img.shields.io/badge/Email-contact@amdjedkhelifi.com-0a192f?style=for-the-badge&logo=gmail&logoColor=64ffda&labelColor=1e3a5f" />
-</a>
-&nbsp;
-<a href="https://linkedin.com/in/amdjed-khelifi">
-  <img src="https://img.shields.io/badge/LinkedIn-Amdjed_Khelifi-0a192f?style=for-the-badge&logo=linkedin&logoColor=00d4ff&labelColor=1e3a5f" />
-</a>
-&nbsp;
-<a href="https://amdjedkhelifi.com">
-  <img src="https://img.shields.io/badge/Portfolio-amdjedkhelifi.com-0a192f?style=for-the-badge&logo=googlechrome&logoColor=64ffda&labelColor=1e3a5f" />
-</a>
-&nbsp;
-<a href="https://drive.google.com/file/d/13ejprfnKSdRg91t9JiJhHGX8-zm5YEdv/view?usp=sharing">
-  <img src="https://img.shields.io/badge/📄_CV-Download-0a192f?style=for-the-badge&labelColor=1e3a5f" />
-</a>
+---
 
-</div>
+## Results
 
-<br/>
+### MAE Pretraining
 
-<!-- TROPHY -->
-<div align="center">
-  <img src="https://github-profile-trophy.vercel.app/?username=amdjedkh&theme=algolia&no-bg=true&no-frame=true&column=7&margin-w=10" />
-</div>
+| Setting | Value |
+|---------|-------|
+| Dataset | ACDC — 70 training subjects |
+| Input | SA-only, ED + ES frames (T=2) |
+| Patch size | [1, 8, 8] |
+| enc_embed_dim | 1040 |
+| Mask ratio | 0.7 |
+| Epochs | 200 |
+| Best val PSNR | **21.91** (epoch 194) |
 
-<br/>
+### Segmentation Finetuning — ACDC Test Set
 
-<!-- SNAKE ANIMATION -->
-<div align="center">
-  <img src="https://raw.githubusercontent.com/amdjedkh/amdjedkh/output/github-snake-dark.svg" alt="Snake animation" />
-</div>
+Identical architecture and training protocol across both conditions. Only `load_encoder` differs.
 
-<!-- FOOTER WAVE -->
-<img width="100%" src="https://capsule-render.vercel.app/api?type=waving&color=0:0a192f,50:1e3a5f,100:00d4ff&height=120&section=footer" />
+| Condition | LVBP Dice | LVMYO Dice | RVBP Dice | FG Dice | FG IoU |
+|-----------|-----------|------------|-----------|---------|--------|
+| Scratch | 0.761 | 0.355 | 0.356 | 0.491 | 0.349 |
+| Pretrained (SSL) | 0.735 | 0.358 | 0.358 | 0.484 | 0.339 |
 
-<div align="center">
-  <img src="https://img.shields.io/badge/Made_with-💙_&_AI-0a192f?style=flat-square&labelColor=1e3a5f" />
-</div>
+The pretrained condition converges faster in early epochs (epoch 5: 0.194 vs 0.169 Dice FG) but reaches equivalent final performance at epoch 100. This suggests MAE pretraining provides a useful initialization but its advantage diminishes with sufficient supervised training on this dataset scale.
+
+---
+
+## Planned Experiments
+
+| Experiment | Dataset | Status |
+|------------|---------|--------|
+| MAE pretraining + segmentation finetuning | ACDC | ✅ Complete |
+| MAE pretraining at scale | UK Biobank (~14k) | ⬜ Pending access |
+| Transfer to infarct segmentation | MyoSAIQ (LGE-MRI) | ⬜ Pending access |
+| Label efficiency study (10/25/50/100%) | MyoSAIQ | ⬜ Pending |
+| nnUNet baseline | ACDC + MyoSAIQ | ⬜ Planned |
+
+---
+
+## References
+
+1. Zhang et al., "Whole Heart 3D+T Representation Learning Through Sparse 2D Cardiac MR Images," MICCAI 2024.
+2. He et al., "Masked Autoencoders Are Scalable Vision Learners," CVPR 2022.
+3. He et al., "VISTA3D: A Unified Segmentation Foundation Model," CVPR 2025.
+4. Gao et al., "Training Like a Medical Resident: Context-Prior Learning Toward Universal Medical Image Segmentation," CVPR 2024.
+5. MyoSAIQ Challenge, CREATIS, Lyon.
+
+---
+
+## License
+
+Builds on [WholeHeartRL](https://github.com/Yundi-Zhang/WholeHeartRL) (MIT License).
