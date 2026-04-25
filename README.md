@@ -180,16 +180,6 @@ Identical architecture and training protocol across both conditions. Only `load_
 
 SSL pretraining improves overall segmentation performance, with the largest gains on LVBP (+3.7pp) and LVMYO (+2.9pp). The pretrained condition also shows faster early convergence.
 
----
-
-## Planned Experiments
-
-| Experiment | Dataset | Status |
-|------------|---------|--------|
-| MAE pretraining + segmentation finetuning | ACDC | ✅ Complete |
-| Label efficiency study (20 vs 85 labels) | ACDC | ✅ Complete |
-| MAE pretraining at scale | UK Biobank (~14k) | ⬜ Pending access |
-| Transfer to infarct segmentation | MyoSAIQ (LGE-MRI) | ⬜ Pending access |
 
 ---
 
