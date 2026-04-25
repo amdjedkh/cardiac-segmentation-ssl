@@ -107,14 +107,16 @@ def main():
     
     if params.general.load_encoder: # Load pretraining encoder
         assert params.general.ckpt_path != None, "The path for checkpoint is not provided."
-        ckpt = torch.load(params.general.ckpt_path)
+        ckpt = torch.load(params.general.ckpt_path, weights_only=False)
         pretrained_dict = ckpt["state_dict"]
         processed_dict = {}
-        pretrained_params = ["cls_token", "enc_pos_embed", "mask_token", "patch_embed", "encoder", "encoder_norm"]
+        pretrained_params = ["cls_token", "mask_token", "patch_embed", "encoder", "encoder_norm"]
         for k in model.state_dict().keys():
             decomposed_k = k.split(".")
             if decomposed_k[0] in pretrained_params:
                 processed_dict[k] = pretrained_dict[k]
+        print(f"Loading pretrained keys: {list(processed_dict.keys())[:10]}")
+        print(f"Total pretrained keys loaded: {len(processed_dict)}")        
         model.load_state_dict(processed_dict, strict=False)
     
     if params.general.freeze_encoder: # Freeze encoder

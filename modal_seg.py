@@ -1,0 +1,481 @@
+"""
+modal_seg.py — Segmentation finetuning on ACDC
+
+Runs two sequential jobs on Modal:
+  1. Pretrained condition: SSL encoder loaded from MAE checkpoint
+  2. Scratch condition:    Random initialisation, no pretrained weights
+
+Usage:
+    modal run modal_seg.py                      # Both conditions
+    modal run modal_seg.py::main --condition pretrained
+    modal run modal_seg.py::main --condition scratch
+
+Checkpoints are written to:
+    /vol/logs/checkpoints/seg_pretrained/<timestamp>/
+    /vol/logs/checkpoints/seg_scratch/<timestamp>/
+
+Configs are read from /vol/WholeHeartRL/configs/.
+Both configs must be uploaded to the Modal volume before running:
+    modal volume put cardiac-data \
+        configs/config_segmentation_acdc_pretrained.yaml \
+        WholeHeartRL/configs/config_segmentation_acdc_pretrained.yaml
+    modal volume put cardiac-data \
+        configs/config_segmentation_acdc_scratch.yaml \
+        WholeHeartRL/configs/config_segmentation_acdc_scratch.yaml
+"""
+
+import modal
+
+app = modal.App("wholeheart-seg")
+vol = modal.Volume.from_name("cardiac-data")
+
+image = (
+    modal.Image.debian_slim(python_version="3.11")
+    .pip_install(
+        "torch==2.1.0",
+        "torchvision==0.16.0",
+    )
+    .pip_install(
+        "moviepy",
+        "lightning>=2.1",
+        "monai>=1.3",
+        "nibabel",
+        "numpy",
+        "pandas",
+        "scipy",
+        "PyYAML",
+        "wandb",
+        "timm==0.9.16",
+        "matplotlib",
+        "tqdm",
+        "h5py",
+        "Pillow",
+        "opencv-python-headless",
+        "scikit-learn",
+        "lpips",
+        "pytorch-ignite",
+        "torchsummary",
+        "medutils-mri",
+    )
+)
+
+
+def _setup_environment():
+    """Set all environment variables required by the codebase."""
+    import os
+    import sys
+
+    os.environ["PYTHONPATH"] = "/vol/WholeHeartRL"
+    os.environ["DATA_ROOT"] = "/vol/raw"
+    os.environ["ALL_FEATURE_TABULAR_DIR"] = "/vol/tabular/all_features.csv"
+    os.environ["BIOMARKER_TABULAR_DIR"] = "/vol/tabular/biomarkers.csv"
+    os.environ["LOG_FOLDER"] = "/vol/logs"
+    os.environ["PROCESS_ROOT"] = "/vol/processed"
+    os.environ["DATALOADER_FILE_ROOT"] = "/vol/dataloader"
+    os.environ["CMR_PATH_PICKLE_NAME"] = "cmr_subject_paths.pkl"
+    os.environ["BIOMARKER_PICKLE_NAME"] = "biomarker_table.pkl"
+    os.environ["PROCESSED_PICKLE_NAME"] = "processed_table.pkl"
+    os.environ["WANDB_DISABLED"] = "true"
+    os.environ["WANDB_MODE"] = "disabled"
+    os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+
+    os.makedirs("/vol/logs", exist_ok=True)
+    sys.path.insert(0, "/vol/WholeHeartRL")
+
+
+def _print_gpu_info():
+    import torch
+    print(f"PyTorch: {torch.__version__}")
+    print(f"CUDA available: {torch.cuda.is_available()}")
+    if torch.cuda.is_available():
+        print(f"GPU: {torch.cuda.get_device_name(0)}")
+        print(f"VRAM: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
+
+
+@app.function(
+    image=image,
+    gpu="A10G",
+    timeout=3600 * 8,   # 8h ceiling — 300 epochs on 70 subjects is fast but safe margin
+    volumes={"/vol": vol},
+)
+def train_segmentation(condition: str):
+    """
+    Run segmentation finetuning for one condition.
+
+    Args:
+        condition: "pretrained" or "scratch"
+    """
+    import subprocess
+    import sys
+
+    assert condition in ("pretrained", "scratch"), \
+        f"condition must be 'pretrained' or 'scratch', got '{condition}'"
+
+    _setup_environment()
+
+    print(f"\n{'='*60}")
+    print(f"  SEGMENTATION FINETUNING — {condition.upper()} CONDITION")
+    print(f"{'='*60}\n")
+    _print_gpu_info()
+
+    config_name = f"config_segmentation_acdc_{condition}.yaml"
+    config_path = f"/vol/WholeHeartRL/configs/{config_name}"
+
+    # Verify config and checkpoint existence before launching training
+    import os
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(
+            f"Config not found: {config_path}\n"
+            f"Upload it with:\n"
+            f"  modal volume put cardiac-data configs/{config_name} "
+            f"WholeHeartRL/configs/{config_name}"
+        )
+
+    if condition == "pretrained":
+        import glob
+        ckpt = "/vol/logs/checkpoints/run1/14-04-2026_09-14-26/model-epoch=034-val_PSNR=19.78.ckpt"
+        if not os.path.exists(ckpt):
+            candidates = glob.glob("/vol/logs/checkpoints/**/*.ckpt", recursive=True)
+            candidates = [c for c in candidates if "val_PSNR" in c and "run2" in c]
+            if not candidates:
+                raise FileNotFoundError("No pretraining checkpoint found.")
+            ckpt = max(candidates, key=lambda x: float(x.split("val_PSNR=")[1].replace(".ckpt", "")))
+            print(f"WARNING: Using fallback checkpoint: {ckpt}")
+        print(f"Checkpoint: {ckpt}")
+
+    print(f"\nConfig:    {config_path}")
+    print(f"Condition: {condition}")
+    print("=" * 60)
+    print("Starting training...\n")
+
+    result = subprocess.run(
+        [
+            sys.executable, "/vol/WholeHeartRL/main.py", "train",
+            "-c", config_path,
+            "-g", f"seg_acdc_{condition}",
+            "-n", f"seg_{condition}",
+        ],
+        cwd="/vol/WholeHeartRL",
+        env=os.environ.copy(),
+        capture_output=False,
+    )
+
+    vol.commit()
+    print(f"\n{'='*60}")
+    print(f"  FINISHED — {condition.upper()} | exit code: {result.returncode}")
+    print(f"{'='*60}\n")
+    return result.returncode
+
+
+@app.function(image=image, gpu=None, volumes={"/vol": vol})
+def create_acdc_pickles():
+    import pickle
+    import numpy as np
+    import pandas as pd
+    from pathlib import Path
+    import glob
+
+    processed_dir = Path("/vol/processed")
+    dataloader_dir = Path("/vol/dataloader")
+    dataloader_dir.mkdir(exist_ok=True)
+
+    # Find all valid processed subjects
+    npz_files = sorted(glob.glob(str(processed_dir / "*/processed_seg_allax.npz")))
+    patient_ids = [int(Path(f).parent.name) for f in npz_files]
+    print(f"Found {len(patient_ids)} processed subjects: {patient_ids[:5]}...{patient_ids[-5:]}")
+
+    # Split 70/15/15
+    import random
+    random.seed(1)
+    shuffled = patient_ids.copy()
+    random.shuffle(shuffled)
+    train_ids = shuffled[:70]
+    val_ids   = shuffled[70:85]
+    test_ids  = shuffled[85:100]
+
+    # Build path lists — each entry is Path to the npz file
+    # This is what CMRDataModule expects in paths["train"] etc.
+    def make_paths(ids):
+        return [processed_dir / f"{i:03d}" / "processed_seg_allax.npz" for i in ids]
+
+    paths = {
+        "train": make_paths(train_ids),
+        "val":   make_paths(val_ids),
+        "test":  make_paths(test_ids),
+    }
+
+    with open(dataloader_dir / "cmr_subject_paths.pkl", "wb") as f:
+        pickle.dump(paths, f)
+    print(f"Saved cmr_subject_paths.pkl: {len(train_ids)} train, {len(val_ids)} val, {len(test_ids)} test")
+
+    # Build minimal target_table with eid_87802 column (required by dataset.__getitem__)
+    # Values are dummy — only used for regression, not segmentation
+    rng = np.random.RandomState(1)
+    n = len(patient_ids)
+    df = pd.DataFrame({
+        "eid_87802": patient_ids,
+        "LVM (g)": rng.normal(120, 25, n),
+    })
+    df.to_pickle(dataloader_dir / "biomarker_table.pkl")
+    print(f"Saved biomarker_table.pkl with {n} rows")
+
+    vol.commit()
+    print("Done.")
+
+
+@app.function(image=image, gpu=None, volumes={"/vol": vol})
+def check_pickle_paths():
+    import pickle
+    with open("/vol/dataloader/cmr_subject_paths.pkl", "rb") as f:
+        paths = pickle.load(f)
+    print(f"Keys: {list(paths.keys())}")
+    print(f"Train paths sample: {paths['train'][:3]}")
+    print(f"Total: train={len(paths['train'])}, val={len(paths['val'])}, test={len(paths['test'])}")
+    # Check if files actually exist
+    import os
+    for p in paths['train'][:3]:
+        print(f"  exists={os.path.exists(str(p))}: {p}")
+
+@app.function(image=image, gpu=None, volumes={"/vol": vol})
+def verify_npz():
+    import numpy as np, glob
+    files = sorted(glob.glob("/vol/processed/**/*.npz", recursive=True))
+    bad = []
+    for f in files:
+        d = np.load(f)
+        shape = d["sax"].shape
+        if shape != (128, 128, 6, 2):
+            bad.append((f, shape))
+    print(f"Total files: {len(files)}")
+    print(f"Bad files: {len(bad)}")
+    for f, s in bad[:10]:
+        print(f"  {f}: {s}")
+
+
+@app.function(image=image, gpu=None, timeout=3600, volumes={"/vol": vol})
+def rebuild_npz_2frame():
+    import nibabel as nib
+    import numpy as np
+    import glob, os
+
+    TARGET_H, TARGET_W, SAX_N = 128, 128, 6
+
+    def center_crop(arr, th, tw):
+        h, w = arr.shape[0], arr.shape[1]
+        hs = max(0, (h - th) // 2)
+        ws = max(0, (w - tw) // 2)
+        out = arr[hs:hs+th, ws:ws+tw]
+        ph = max(0, th - out.shape[0])
+        pw = max(0, tw - out.shape[1])
+        if ph or pw:
+            pad = [(0,ph),(0,pw)] + [(0,0)]*(arr.ndim-2)
+            out = np.pad(out, pad)
+        return out
+
+    def select_slices(im, seg, n):
+        S = im.shape[2]
+        if S <= n:
+            pad = n - S
+            im  = np.concatenate([im,  np.repeat(im[:,:,-1:,:],  pad, axis=2)], axis=2)
+            seg = np.concatenate([seg, np.repeat(seg[:,:,-1:,:], pad, axis=2)], axis=2)
+            return im, seg
+        lv = (seg == 1).any(axis=(0,1,3))
+        z0 = int(lv.argmax()) if lv.any() else (S-n)//2
+        z0 = max(0, min(z0-1, S-n))
+        return im[:,:,z0:z0+n,:], seg[:,:,z0:z0+n,:]
+
+    def remap(seg):
+        out = np.zeros_like(seg)
+        out[seg == 1] = 3
+        out[seg == 2] = 2
+        out[seg == 3] = 1
+        return out
+
+    def parse_info(info_path):
+        info = {}
+        with open(info_path) as f:
+            for line in f:
+                if ":" in line:
+                    k, v = line.strip().split(":", 1)
+                    info[k.strip()] = v.strip()
+        return int(info.get("ED", 0)), int(info.get("ES", 0))
+
+    patient_dirs = sorted(glob.glob("/vol/raw/*/"))
+    print(f"Found {len(patient_dirs)} patients")
+
+    for pd_path in patient_dirs:
+        pid = os.path.basename(pd_path.rstrip("/"))
+        sa_path  = os.path.join(pd_path, "sa.nii.gz")
+        seg_path = os.path.join(pd_path, "seg_sa.nii.gz")
+        info_path = os.path.join(pd_path, "Info.cfg")
+
+        if not os.path.exists(sa_path):
+            print(f"  SKIP {pid}: missing sa.nii.gz")
+            continue
+
+        sa  = nib.load(sa_path).get_fdata().astype(np.float32)   # (H,W,S,T)
+        seg = nib.load(seg_path).get_fdata().astype(np.int32)
+        seg = remap(seg)
+
+        # Extract only ED and ES frames
+        if os.path.exists(info_path):
+            ed, es = parse_info(info_path)
+        else:
+            # fallback: find labeled frames
+            labeled = np.where(seg.any(axis=(0,1,2)))[0]
+            ed, es = (labeled[0], labeled[-1]) if len(labeled) >= 2 else (0, 1)
+
+        sa_2  = sa[..., [ed, es]]    # (H,W,S,2)
+        seg_2 = seg[..., [ed, es]]   # (H,W,S,2)
+
+        sa_2  = center_crop(sa_2,  TARGET_H, TARGET_W)
+        seg_2 = center_crop(seg_2, TARGET_H, TARGET_W)
+        sa_2, seg_2 = select_slices(sa_2, seg_2, SAX_N)
+
+        lax     = np.zeros((TARGET_H, TARGET_W, 3, 2), dtype=np.float32)
+        seg_lax = np.zeros((TARGET_H, TARGET_W, 3, 2), dtype=np.float32)
+
+        out_dir = f"/vol/processed/{pid}"
+        os.makedirs(out_dir, exist_ok=True)
+        np.savez(f"{out_dir}/processed_seg_allax.npz",
+                 sax=sa_2.astype(np.float32),
+                 lax=lax,
+                 seg_sax=seg_2.astype(np.float32),
+                 seg_lax=seg_lax)
+        print(f"  {pid}: sa={sa_2.shape} seg_unique={np.unique(seg_2)}")
+
+    vol.commit()
+    print("Done.")
+
+@app.function(image=image, volumes={"/vol": vol})
+def inspect_labels():
+    import numpy as np, glob
+    files = sorted(glob.glob("/vol/processed/**/*.npz", recursive=True))[:3]
+    for f in files:
+        d = np.load(f, allow_pickle=True)
+        print(f"\n{f}")
+        for k in ["seg_sax", "seg_lax"]:
+            if k in d:
+                arr = d[k]
+                print(f"  {k}: shape={arr.shape}, unique={np.unique(arr)}, dtype={arr.dtype}")
+
+
+@app.function(image=image, gpu=None, timeout=3600*2, volumes={"/vol": vol})
+def reprocess_acdc():
+    import subprocess, sys
+    _setup_environment()
+    result = subprocess.run([
+        sys.executable, "/vol/convert_acdc.py",
+        "--acdc_dir", "/vol/raw",
+        "--output_dir", "/vol/processed",
+    ], capture_output=False)
+    vol.commit()
+    return result.returncode
+
+
+@app.function(image=image, gpu=None, volumes={"/vol": vol})
+def inspect_raw():
+    import nibabel as nib
+    import numpy as np
+    for pid in ["001", "002"]:
+        seg = nib.load(f"/vol/raw/{pid}/seg_sa.nii.gz").get_fdata()
+        sa  = nib.load(f"/vol/raw/{pid}/sa.nii.gz").get_fdata()
+        print(f"\n{pid}:")
+        print(f"  sa shape:   {sa.shape}")
+        print(f"  seg shape:  {seg.shape}")
+        print(f"  seg unique: {np.unique(seg)}")
+
+@app.function(image=image, gpu=None, timeout=3600*2, volumes={"/vol": vol})
+def rebuild_npz():
+    import nibabel as nib
+    import numpy as np
+    import glob, os
+
+    TARGET_H, TARGET_W, TARGET_T, SAX_N = 128, 128, 50, 6
+
+    def center_crop(arr, th, tw):
+        h, w = arr.shape[0], arr.shape[1]
+        hs = max(0, (h - th) // 2)
+        ws = max(0, (w - tw) // 2)
+        out = arr[hs:hs+th, ws:ws+tw]
+        ph = max(0, th - out.shape[0])
+        pw = max(0, tw - out.shape[1])
+        if ph or pw:
+            pad = [(0,ph),(0,pw)] + [(0,0)]*(arr.ndim-2)
+            out = np.pad(out, pad)
+        return out
+
+    def pad_time(arr, tt):
+        T = arr.shape[-1]
+        if T >= tt: return arr[..., :tt]
+        return np.concatenate([arr, np.repeat(arr[...,-1:], tt-T, axis=-1)], axis=-1)
+
+    def select_slices(im, seg, n):
+        S = im.shape[2]
+        if S <= n:
+            pad = n - S
+            im  = np.concatenate([im,  np.repeat(im[:,:,-1:,:],  pad, axis=2)], axis=2)
+            seg = np.concatenate([seg, np.repeat(seg[:,:,-1:,:], pad, axis=2)], axis=2)
+            return im, seg
+        lv = (seg == 1).any(axis=(0,1,3))
+        z0 = int(lv.argmax()) if lv.any() else (S-n)//2
+        z0 = max(0, min(z0-1, S-n))
+        return im[:,:,z0:z0+n,:], seg[:,:,z0:z0+n,:]
+
+    def remap(seg):
+        out = np.zeros_like(seg)
+        out[seg == 1] = 3  # RV  → RVBP
+        out[seg == 2] = 2  # MYO → LVMYO
+        out[seg == 3] = 1  # LV  → LVBP
+        return out
+
+    patient_dirs = sorted(glob.glob("/vol/raw/*/"))
+    print(f"Found {len(patient_dirs)} patients")
+    for pd in patient_dirs:
+        pid = os.path.basename(pd.rstrip("/"))
+        sa_path  = os.path.join(pd, "sa.nii.gz")
+        seg_path = os.path.join(pd, "seg_sa.nii.gz")
+        if not os.path.exists(sa_path) or not os.path.exists(seg_path):
+            print(f"  SKIP {pid}: missing files")
+            continue
+        sa  = nib.load(sa_path).get_fdata().astype(np.float32)
+        seg = nib.load(seg_path).get_fdata().astype(np.int32)
+        seg = remap(seg)
+        sa  = center_crop(sa,  TARGET_H, TARGET_W)
+        seg = center_crop(seg, TARGET_H, TARGET_W)
+        sa,  seg = select_slices(sa, seg, SAX_N)
+        sa  = pad_time(sa,  TARGET_T)
+        seg = pad_time(seg, TARGET_T)
+        lax     = np.zeros((TARGET_H, TARGET_W, 3, TARGET_T), dtype=np.float32)
+        seg_lax = np.zeros((TARGET_H, TARGET_W, 3, TARGET_T), dtype=np.float32)
+        out_dir = f"/vol/processed/{pid}"
+        os.makedirs(out_dir, exist_ok=True)
+        np.savez(f"{out_dir}/processed_seg_allax.npz",
+                 sax=sa, lax=lax, seg_sax=seg.astype(np.float32), seg_lax=seg_lax)
+        print(f"  {pid}: sa={sa.shape} seg_unique={np.unique(seg)}")
+
+    vol.commit()
+    print("Done.")
+
+@app.local_entrypoint()
+def main(condition: str = "both"):
+    """
+    Run segmentation finetuning.
+
+    Usage:
+        modal run modal_seg.py                         # both conditions
+        modal run modal_seg.py --condition pretrained
+        modal run modal_seg.py --condition scratch
+    """
+    assert condition in ("pretrained", "scratch", "both"), \
+        f"--condition must be pretrained, scratch, or both. Got: {condition}"
+
+    conditions = ["pretrained", "scratch"] if condition == "both" else [condition]
+
+    for cond in conditions:
+        print(f"\n>>> Launching {cond} condition on Modal...")
+        code = train_segmentation.remote(cond)
+        if code != 0:
+            print(f"ERROR: {cond} run failed with exit code {code}. Check Modal logs.")
+        else:
+            print(f">>> {cond} run completed successfully.")

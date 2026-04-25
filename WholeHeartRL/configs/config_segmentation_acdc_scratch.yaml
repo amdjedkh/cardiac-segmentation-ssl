@@ -1,0 +1,60 @@
+# ============================================================
+# Segmentation finetuning — SCRATCH condition
+# Random weight initialisation — no pretrained encoder loaded.
+# Identical architecture and training protocol to the pretrained
+# condition. The only difference is load_encoder: False and
+# no ckpt_path, ensuring a controlled, fair comparison.
+# ============================================================
+
+general:
+  seed: 1
+  wandb_disabled: "true"
+  freeze_encoder: False
+  resume_training: False
+  load_encoder: False         # No pretrained weights — random init
+  ckpt_path: null
+
+data:
+  replace_processed: False
+  sax_slice_num: 6
+  image_size: [128, 128]
+  train_num_per_epoch: 70
+  num_train: 70
+  num_val: 15
+  num_test: 15
+  num_workers: 2
+  batch_size: 1
+  dataset_cls: Cardiac3DplusTSAX
+  load_seg: True
+
+module:
+  task_idx: 2
+  module_idx: 0
+
+  seg_hparams:
+    enc_embed_dim: 1040
+    enc_depth: 6
+    enc_num_heads: 5
+    feature_size: 16
+    dec_embed_dim: 1152
+    spatial_dims: 3
+    upsample_kernel_sizes: [[1, 2, 2], [1, 2, 2], [1, 2, 2]]
+
+  training_params:
+    patch_embed_cls: "PatchEmbed"
+    patch_size: [1, 8, 8]     # Same as pretrained condition — controls for architecture
+    patch_in_channels: 1
+    mask_type: "random"
+    mask_ratio: 0.7
+    lr: 0.00005
+    min_lr: 0.0
+    warmup_epochs: 10
+    optim_weight_decay: 0.05
+    loss_types: ["dice"]
+    loss_weights: [1.0]
+    train_log_rate: 1
+    val_log_rate: 2
+
+trainer:
+  max_epochs: 100
+  check_val_every_n_epoch: 5

@@ -15,3 +15,35 @@ __pycache__/
 # OS
 .DS_Store
 Thumbs.db
+
+# Lightning logs — only keep valid runs with metrics
+lightning_logs/version_0/
+lightning_logs/version_1/
+lightning_logs/version_2/
+lightning_logs/version_3/
+lightning_logs/version_5/
+lightning_logs/version_6/
+lightning_logs/version_8/
+lightning_logs/version_9/
+lightning_logs/version_10/
+lightning_logs/version_11/
+
+# Keep only valid runs:
+# version_15 = pretraining run2
+# version_16 = scratch seg (valid)
+# version_17 = pretrained seg attempt (partial, keep for record)
+# version_18 = pretrained seg (valid)
+# version_4  = early scratch run (partial)
+# version_7  = early run (partial)
+# version_12/13/14 = intermediate runs
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# Outputs
+*.ckpt
+*.npy
+*.npz

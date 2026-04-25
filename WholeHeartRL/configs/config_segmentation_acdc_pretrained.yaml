@@ -1,0 +1,59 @@
+# ============================================================
+# Segmentation finetuning — PRETRAINED condition
+# Loads SSL encoder from MAE pretraining checkpoint.
+# Encoder weights are loaded (load_encoder: True) and then
+# finetuned end-to-end (freeze_encoder: False).
+# ============================================================
+
+general:
+  seed: 1
+  wandb_disabled: "true"
+  freeze_encoder: False       # Finetune encoder end-to-end
+  resume_training: False      # Not resuming a seg run — starting fresh
+  load_encoder: True          # Load pretrained SSL encoder weights
+  ckpt_path: "/vol/logs/checkpoints/run2/25-04-2026_02-20-05/model-epoch=194-val_PSNR=21.91.ckpt"
+
+data:
+  replace_processed: False
+  sax_slice_num: 6
+  image_size: [128, 128]
+  train_num_per_epoch: 70     # Full train set each epoch (70 subjects)
+  num_train: 70
+  num_val: 15
+  num_test: 15
+  num_workers: 2
+  batch_size: 1
+  dataset_cls: Cardiac3DplusTAllAX
+  load_seg: True
+
+module:
+  task_idx: 2       # 0=reconstruction, 1=regression, 2=segmentation
+  module_idx: 0     # 0=SegMAE
+
+  seg_hparams:
+    enc_embed_dim: 1040       # MUST match pretraining checkpoint exactly
+    enc_depth: 6              # MUST match pretraining checkpoint exactly
+    enc_num_heads: 5          # MUST match pretraining checkpoint exactly
+    feature_size: 16
+    dec_embed_dim: 1152
+    spatial_dims: 3
+    upsample_kernel_sizes: [[1, 2, 2], [1, 2, 2], [1, 2, 2]]
+
+  training_params:
+    patch_embed_cls: "PatchEmbed"
+    patch_size: [1, 8, 8]     # MUST match pretraining exactly — was [5,8,8] not [25,8,8]
+    patch_in_channels: 1
+    mask_type: "random"
+    mask_ratio: 0.7
+    lr: 0.00005               # Lower LR for finetuning
+    min_lr: 0.0
+    warmup_epochs: 10
+    optim_weight_decay: 0.05
+    loss_types: ["dice"]
+    loss_weights: [1.0]
+    train_log_rate: 1
+    val_log_rate: 2
+
+trainer:
+  max_epochs: 100
+  check_val_every_n_epoch: 5

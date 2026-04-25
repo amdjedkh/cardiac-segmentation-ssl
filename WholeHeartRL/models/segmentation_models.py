@@ -124,7 +124,7 @@ class SegMAE(BasicModule):
 
     @torch.no_grad()
     def test_step(self, batch, batch_idx):
-        if not self.vis:
+        if not getattr(self, 'vis', False):
             _ = self.training_step(batch, batch_idx, mode="test")
         else:
             self.visualization(batch, batch_idx, mode="vis")

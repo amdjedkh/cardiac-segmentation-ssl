@@ -52,6 +52,7 @@ class TrainerParams:
     accelerator: str = "gpu"
     max_epochs: int = 10_000
     check_val_every_n_epoch: int = 5
+    precision: str = "16-mixed"
     # devices: int = 1
 
 

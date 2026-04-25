@@ -1,0 +1,290 @@
+dec_embed_dim: 1152
+dropout: 0.0
+enc_depth: 6
+enc_embed_dim: 1040
+enc_num_heads: 5
+feature_size: 16
+loss_types:
+- dice
+loss_weights:
+- 1.0
+lr: 5.0e-05
+mask_ratio: 0.7
+mask_type: random
+min_lr: 0.0
+mlp_ratio: 4.0
+optim_weight_decay: 0.05
+patch_embed_cls: PatchEmbed
+patch_in_channels: 1
+patch_size:
+- 1
+- 8
+- 8
+spatial_dims: 3
+train_log_rate: 1
+upsample_kernel_sizes:
+- - 1
+  - 2
+  - 2
+- - 1
+  - 2
+  - 2
+- - 1
+  - 2
+  - 2
+val_dset: !!python/object:data.datasets.Cardiac3DplusTSAX_Test
+  augmentation: false
+  augs: true
+  load_seg: true
+  num_classes: 4
+  sax_slice_num: 6
+  slice_num: 6
+  subject_paths:
+  - !!python/object/apply:pathlib.PosixPath
+    - /
+    - vol
+    - processed
+    - '002'
+    - processed_seg_allax.npz
+  - !!python/object/apply:pathlib.PosixPath
+    - /
+    - vol
+    - processed
+    - '070'
+    - processed_seg_allax.npz
+  - !!python/object/apply:pathlib.PosixPath
+    - /
+    - vol
+    - processed
+    - '075'
+    - processed_seg_allax.npz
+  - !!python/object/apply:pathlib.PosixPath
+    - /
+    - vol
+    - processed
+    - '003'
+    - processed_seg_allax.npz
+  - !!python/object/apply:pathlib.PosixPath
+    - /
+    - vol
+    - processed
+    - 086
+    - processed_seg_allax.npz
+  - !!python/object/apply:pathlib.PosixPath
+    - /
+    - vol
+    - processed
+    - '041'
+    - processed_seg_allax.npz
+  - !!python/object/apply:pathlib.PosixPath
+    - /
+    - vol
+    - processed
+    - '014'
+    - processed_seg_allax.npz
+  - !!python/object/apply:pathlib.PosixPath
+    - /
+    - vol
+    - processed
+    - '076'
+    - processed_seg_allax.npz
+  - !!python/object/apply:pathlib.PosixPath
+    - /
+    - vol
+    - processed
+    - '030'
+    - processed_seg_allax.npz
+  - !!python/object/apply:pathlib.PosixPath
+    - /
+    - vol
+    - processed
+    - '035'
+    - processed_seg_allax.npz
+  - !!python/object/apply:pathlib.PosixPath
+    - /
+    - vol
+    - processed
+    - 093
+    - processed_seg_allax.npz
+  - !!python/object/apply:pathlib.PosixPath
+    - /
+    - vol
+    - processed
+    - '001'
+    - processed_seg_allax.npz
+  - !!python/object/apply:pathlib.PosixPath
+    - /
+    - vol
+    - processed
+    - 078
+    - processed_seg_allax.npz
+  - !!python/object/apply:pathlib.PosixPath
+    - /
+    - vol
+    - processed
+    - '056'
+    - processed_seg_allax.npz
+  - !!python/object/apply:pathlib.PosixPath
+    - /
+    - vol
+    - processed
+    - '050'
+    - processed_seg_allax.npz
+  target_table: !!python/object:pandas.DataFrame
+    _flags:
+      allows_duplicate_labels: true
+    _metadata: []
+    _mgr: !!python/object/apply:pandas.core.internals.managers.BlockManager
+    - !!python/tuple
+      - !!python/object/apply:pandas._libs.internals._unpickle_block
+        - !!python/object/apply:numpy._core.multiarray._reconstruct
+          args:
+          - &id001 !!python/name:numpy.ndarray ''
+          - !!python/tuple
+            - 0
+          - !!binary |
+            Yg==
+          state: !!python/tuple
+          - 1
+          - !!python/tuple
+            - 1
+            - 100
+          - !!python/object/apply:numpy.dtype
+            args:
+            - i8
+            - false
+            - true
+            state: !!python/tuple
+            - 3
+            - <
+            - null
+            - null
+            - null
+            - -1
+            - -1
+            - 0
+          - false
+          - !!binary |
+            AQAAAAAAAAACAAAAAAAAAAMAAAAAAAAABAAAAAAAAAAFAAAAAAAAAAYAAAAAAAAABwAAAAAAAAAI
+            AAAAAAAAAAkAAAAAAAAACgAAAAAAAAALAAAAAAAAAAwAAAAAAAAADQAAAAAAAAAOAAAAAAAAAA8A
+            AAAAAAAAEAAAAAAAAAARAAAAAAAAABIAAAAAAAAAEwAAAAAAAAAUAAAAAAAAABUAAAAAAAAAFgAA
+            AAAAAAAXAAAAAAAAABgAAAAAAAAAGQAAAAAAAAAaAAAAAAAAABsAAAAAAAAAHAAAAAAAAAAdAAAA
+            AAAAAB4AAAAAAAAAHwAAAAAAAAAgAAAAAAAAACEAAAAAAAAAIgAAAAAAAAAjAAAAAAAAACQAAAAA
+            AAAAJQAAAAAAAAAmAAAAAAAAACcAAAAAAAAAKAAAAAAAAAApAAAAAAAAACoAAAAAAAAAKwAAAAAA
+            AAAsAAAAAAAAAC0AAAAAAAAALgAAAAAAAAAvAAAAAAAAADAAAAAAAAAAMQAAAAAAAAAyAAAAAAAA
+            ADMAAAAAAAAANAAAAAAAAAA1AAAAAAAAADYAAAAAAAAANwAAAAAAAAA4AAAAAAAAADkAAAAAAAAA
+            OgAAAAAAAAA7AAAAAAAAADwAAAAAAAAAPQAAAAAAAAA+AAAAAAAAAD8AAAAAAAAAQAAAAAAAAABB
+            AAAAAAAAAEIAAAAAAAAAQwAAAAAAAABEAAAAAAAAAEUAAAAAAAAARgAAAAAAAABHAAAAAAAAAEgA
+            AAAAAAAASQAAAAAAAABKAAAAAAAAAEsAAAAAAAAATAAAAAAAAABNAAAAAAAAAE4AAAAAAAAATwAA
+            AAAAAABQAAAAAAAAAFEAAAAAAAAAUgAAAAAAAABTAAAAAAAAAFQAAAAAAAAAVQAAAAAAAABWAAAA
+            AAAAAFcAAAAAAAAAWAAAAAAAAABZAAAAAAAAAFoAAAAAAAAAWwAAAAAAAABcAAAAAAAAAF0AAAAA
+            AAAAXgAAAAAAAABfAAAAAAAAAGAAAAAAAAAAYQAAAAAAAABiAAAAAAAAAGMAAAAAAAAAZAAAAAAA
+            AAA=
+        - !!python/object/apply:builtins.slice
+          - 0
+          - 1
+          - 1
+        - 2
+      - !!python/object/apply:pandas._libs.internals._unpickle_block
+        - !!python/object/apply:numpy._core.multiarray._reconstruct
+          args:
+          - *id001
+          - !!python/tuple
+            - 0
+          - !!binary |
+            Yg==
+          state: !!python/tuple
+          - 1
+          - !!python/tuple
+            - 1
+            - 100
+          - !!python/object/apply:numpy.dtype
+            args:
+            - f8
+            - false
+            - true
+            state: !!python/tuple
+            - 3
+            - <
+            - null
+            - null
+            - null
+            - -1
+            - -1
+            - 0
+          - false
+          - !!binary |
+            SNIz7nkTZEB8F66SMC1aQOl7q9nsslpAG8hnDUBLV0C1LoR7U7RhQFVC4H8TO09ArRQGc9lzZECi
+            yUSnET5ZQAYx62l2/l9AQZXq5AFxXEAnGJy0r5FjQPIuil3GH1FAw9bJ6SH8W0BulBlWg5lbQOSb
+            VvsDi2JAZNByiSwgV0DE5PtnHexcQA4vKDFtg1hAKOgqwIpDXkCR4EaOQNJgQB9AkGICH1dAjD1w
+            aseTYkCBYpLHRdFhQO4GMtf+kWBAJo5kTK/QYUBvQ6IRCbpZQPJ+4ylgO11AaGH41sQmWEDU3OYK
+            YVNcQELMscxIqGBA1lSPwVetWUB54WHBMYVbQLBD4Q+GtFlARw3txKu3WEDsDraVAc5ZQC5qjZS8
+            611AmQ5jrk0EV0B9tXmrEHdfQDIdYnzXL2RA8dXipKJRYUDUemIoEM1cQDu1Ii3Lc1hA/Ed/9otU
+            WUAfT8mz9klkQPkpOttKUV5AaFBKlc4EWkDPaob7djFfQB7af0A0kGVAWDBgG0HAXkBL8mUyw+1g
+            QDeAV8NF4F9A6A5/dmbMW0AXkMyL+NtWQLzhjDgN0VtAvdMI7MSxXEAoQvdtTNVgQPL9m80vn2FA
+            Dd3MtOHoYUCmPoSR8MhfQOrEEukcxGFAbE92mvZIWUB15e9lS+piQM3+9wZYmmBAEeO7LA0jXEDe
+            gDOE0IZgQP1yi9MVh11AHS3Usk2JYkBYo+d72r9jQHjB39d11GVAXhfaGZtFVUB+XDz8avlUQIVa
+            VMja2FpAyGkDLw8AX0CipCFl77xhQM87CxME+V9AJqfKYXpcUUB6GyDWEhZcQFQ88TRhlmFA4hK5
+            zSZwX0A0NcXjm2FhQO+sjWRGnFxAExy2fsm+XECFMbaLfypfQFAYzZMKSGBAsLC7kEc9X0Dahvrw
+            ab5eQNfMP7rwzllA04E9EA0uYECa6Br+6cJeQPo/6U2Wh2JATuW9YSK/YkDm3I8RQChfQCZD0UiL
+            p1tAYGVtBggCWkDPVMqky1JgQPNr832+e15AihTUiNXZW0BgcsZFwUVeQJ5wgaf/H1pAbnDo9Wwu
+            YUA=
+        - !!python/object/apply:builtins.slice
+          - 1
+          - 2
+          - 1
+        - 2
+    - - !!python/object/apply:pandas.core.indexes.base._new_Index
+        - !!python/name:pandas.Index ''
+        - data: !!python/object/apply:pandas._libs.arrays.__pyx_unpickle_NDArrayBacked
+            args:
+            - !!python/name:pandas.arrays.StringArray ''
+            - 82904607
+            - null
+            state: !!python/tuple
+            - !!python/object/apply:pandas.StringDtype
+              - python
+              - .nan
+            - !!python/object/apply:numpy._core.multiarray._reconstruct
+              args:
+              - *id001
+              - !!python/tuple
+                - 0
+              - !!binary |
+                Yg==
+              state: !!python/tuple
+              - 1
+              - !!python/tuple
+                - 2
+              - !!python/object/apply:numpy.dtype
+                args:
+                - O8
+                - false
+                - true
+                state: !!python/tuple
+                - 3
+                - '|'
+                - null
+                - null
+                - null
+                - -1
+                - -1
+                - 63
+              - false
+              - - eid_87802
+                - LVM (g)
+          name: null
+      - !!python/object/apply:pandas.core.indexes.base._new_Index
+        - !!python/name:pandas.RangeIndex ''
+        - name: null
+          start: 0
+          step: 1
+          stop: 100
+    _typ: dataframe
+    attrs: {}
+  target_value_name: LVM (g)
+  time_frame: 50
+  view: 0
+  z_seg_relative: 4
+val_log_rate: 2
+warmup_epochs: 10

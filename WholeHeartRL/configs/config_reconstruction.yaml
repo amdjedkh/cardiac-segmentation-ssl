@@ -16,20 +16,20 @@ data:
   num_test: 15
   num_workers: 2
   batch_size: 1
-  dataset_cls: Cardiac3DplusTAllAX
+  dataset_cls: Cardiac3DplusTSAX
 
 module:
   task_idx: 0
   module_idx: 0
   recon_hparams:
-    enc_embed_dim: 1025
+    enc_embed_dim: 1040
     enc_depth: 6
     enc_num_heads: 5
-    dec_embed_dim: 1025
+    dec_embed_dim: 1040
     dec_depth: 2
     dec_num_heads: 5
   training_params:
-    patch_size: [5, 8, 8]
+    patch_size: [1, 8, 8]
     mask_type: "random"
     mask_ratio: 0.7
     loss_types: ["mse"]
@@ -38,5 +38,5 @@ module:
     val_log_rate: 2
 
 trainer:
-  max_epochs: 50
+  max_epochs: 200
   check_val_every_n_epoch: 5

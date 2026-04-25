@@ -86,7 +86,7 @@ def train_pretrain():
             sys.executable, "/vol/WholeHeartRL/main.py", "train",
             "-c", "/vol/WholeHeartRL/configs/config_reconstruction.yaml",
             "-g", "pretrain_acdc",
-            "-n", "run1",
+            "-n", "run2",
         ],
         cwd="/vol/WholeHeartRL",
         env=os.environ.copy(),
